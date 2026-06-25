@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ECHOES OF TOMORROW</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap');
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      overflow: hidden;
+      background: #1a1a2e;
+      font-family: 'Cormorant Garamond', serif;
+      cursor: default;
+    }
+
+    #game-canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    /* Overlay UI */
+    #ui-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    /* Title screen */
+    #title-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(ellipse at center, #1a1a2e 0%, #0d0d1a 100%);
+      z-index: 100;
+      transition: opacity 2s ease;
+      pointer-events: all;
+    }
+
+    #title-screen.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #title-screen h1 {
+      font-size: 4.5rem;
+      font-weight: 300;
+      letter-spacing: 1.2rem;
+      color: #e8d5b7;
+      text-shadow: 0 0 60px rgba(232, 213, 183, 0.3);
+      margin-bottom: 0.5rem;
+      animation: titlePulse 4s ease-in-out infinite;
+    }
+
+    #title-screen .subtitle {
+      font-size: 1.2rem;
+      font-weight: 300;
+      font-style: italic;
+      letter-spacing: 0.5rem;
+      color: #8a7a6a;
+      margin-bottom: 3rem;
+    }
+
+    #title-screen .tagline {
+      font-size: 1rem;
+      color: #5a4a3a;
+      letter-spacing: 0.3rem;
+      margin-bottom: 2.5rem;
+      max-width: 600px;
+      text-align: center;
+      line-height: 1.8;
+      font-style: italic;
+    }
+
+    @keyframes titlePulse {
+      0%, 100% { text-shadow: 0 0 60px rgba(232, 213, 183, 0.3); }
+      50% { text-shadow: 0 0 100px rgba(232, 213, 183, 0.5), 0 0 20px rgba(232, 213, 183, 0.2); }
+    }
+
+    .btn-start {
+      pointer-events: all;
+      cursor: pointer;
+      padding: 16px 48px;
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.3rem;
+      letter-spacing: 0.5rem;
+      color: #e8d5b7;
+      background: transparent;
+      border: 1px solid rgba(232, 213, 183, 0.3);
+      transition: all 0.5s ease;
+      text-transform: uppercase;
+    }
+
+    .btn-start:hover {
+      background: rgba(232, 213, 183, 0.1);
+      border-color: rgba(232, 213, 183, 0.6);
+      box-shadow: 0 0 40px rgba(232, 213, 183, 0.2);
+    }
+
+    /* HUD */
+    #hud {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 20;
+      opacity: 0;
+      transition: opacity 1.5s ease;
+    }
+
+    #hud.visible {
+      opacity: 1;
+    }
+
+    /* Crosshair */
+    #crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 20px;
+      height: 20px;
+    }
+
+    #crosshair::before,
+    #crosshair::after {
+      content: '';
+      position: absolute;
+      background: rgba(232, 213, 183, 0.5);
+    }
+
+    #crosshair::before {
+      width: 1px;
+      height: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    #crosshair::after {
+      width: 100%;
+      height: 1px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    #crosshair .ring {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 14px;
+      height: 14px;
+      border: 1px solid rgba(232, 213, 183, 0.3);
+      border-radius: 50%;
+    }
+
+    /* Echo alignment indicator */
+    #echo-indicator {
+      position: absolute;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+
+    #echo-indicator.visible {
+      opacity: 1;
+    }
+
+    #echo-bar-bg {
+      width: 200px;
+      height: 3px;
+      background: rgba(232, 213, 183, 0.15);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    #echo-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #00d4ff, #7b68ee);
+      border-radius: 2px;
+      transition: width 0.15s ease;
+    }
+
+    #echo-label {
+      font-size: 0.7rem;
+      letter-spacing: 0.3rem;
+      color: rgba(232, 213, 183, 0.5);
+      text-transform: uppercase;
+    }
+
+    /* White noise overlay */
+    #noise-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 15;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      mix-blend-mode: overlay;
+    }
+
+    /* Controls hint */
+    #controls-hint {
+      position: absolute;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.8rem;
+      letter-spacing: 0.15rem;
+      color: rgba(232, 213, 183, 0.3);
+      text-align: center;
+      line-height: 1.8;
+      opacity: 0;
+      transition: opacity 2s ease;
+    }
+
+    #controls-hint.visible {
+      opacity: 1;
+    }
+
+    /* Book interaction */
+    #book-label {
+      position: absolute;
+      bottom: 140px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.9rem;
+      font-style: italic;
+      letter-spacing: 0.1rem;
+      color: #e8d5b7;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      text-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+    }
+
+    #book-label.visible {
+      opacity: 1;
+    }
+
+    /* Meditation mode */
+    #meditation-badge {
+      position: absolute;
+      top: 30px;
+      right: 30px;
+      font-size: 0.7rem;
+      letter-spacing: 0.3rem;
+      color: rgba(232, 213, 183, 0.4);
+      opacity: 0;
+      transition: opacity 1s ease;
+      text-transform: uppercase;
+    }
+
+    #meditation-badge.visible {
+      opacity: 1;
+    }
+
+    /* Story text */
+    #story-text {
+      position: absolute;
+      bottom: 50%;
+      left: 50%;
+      transform: translate(-50%, 50%);
+      font-size: 1.1rem;
+      font-style: italic;
+      letter-spacing: 0.05rem;
+      color: rgba(232, 213, 183, 0.7);
+      text-align: center;
+      max-width: 500px;
+      line-height: 1.8;
+      opacity: 0;
+      transition: opacity 3s ease;
+      text-shadow: 0 0 40px rgba(0, 0, 0, 0.9);
+    }
+
+    #story-text.visible {
+      opacity: 1;
+    }
+
+    /* Loading */
+    #loading {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0d0d1a;
+      z-index: 200;
+      transition: opacity 1s ease;
+    }
+
+    #loading.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #loading .spinner {
+      width: 40px;
+      height: 40px;
+      border: 1px solid rgba(232, 213, 183, 0.1);
+      border-top-color: #e8d5b7;
+      border-radius: 50%;
+      animation: spin 2s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    #loading-text {
+      margin-top: 20px;
+      font-size: 0.9rem;
+      letter-spacing: 0.3rem;
+      color: rgba(232, 213, 183, 0.4);
+    }
+
+    /* Lock screen overlay */
+    #click-to-lock {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(13, 13, 26, 0.7);
+      z-index: 50;
+      pointer-events: all;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 1s ease;
+      backdrop-filter: blur(4px);
+    }
+
+    #click-to-lock.visible {
+      opacity: 1;
+    }
+
+    #click-to-lock span {
+      font-size: 1.5rem;
+      letter-spacing: 0.5rem;
+      color: #e8d5b7;
+      font-weight: 300;
+      animation: breathe 3s ease-in-out infinite;
+    }
+
+    @keyframes breathe {
+      0%, 100% { opacity: 0.5; }
+      50% { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Loading screen -->
+  <div id="loading">
+    <div style="display:flex;flex-direction:column;align-items:center;">
+      <div class="spinner"></div>
+      <div id="loading-text">CARREGANDO ECOS</div>
+    </div>
+  </div>
+
+  <!-- Title screen -->
+  <div id="title-screen">
+    <h1>ECHOES</h1>
+    <h1 style="font-size:2.5rem;letter-spacing:1.5rem;margin-top:-1rem;">OF TOMORROW</h1>
+    <div class="subtitle">— UMA ARQUEOLOGIA SÔNICA —</div>
+    <div class="tagline">
+      "Na Cápsula do Éter, o tempo não é uma linha reta.<br>
+      É um eco que você aprendeu a ouvir."
+    </div>
+    <button class="btn-start" id="btn-start">ENTRAR NA BIBLIOTECA</button>
+  </div>
+
+  <!-- Game canvas -->
+  <canvas id="game-canvas"></canvas>
+
+  <!-- HUD -->
+  <div id="hud">
+    <!-- Crosshair -->
+    <div id="crosshair"><div class="ring"></div></div>
+
+    <!-- Echo indicator -->
+    <div id="echo-indicator">
+      <div id="echo-bar-bg">
+        <div id="echo-bar-fill"></div>
+      </div>
+      <div id="echo-label">SINCRONIA DO ECO</div>
+    </div>
+
+    <!-- Book label -->
+    <div id="book-label"></div>
+
+    <!-- Meditation badge -->
+    <div id="meditation-badge">✦ MEDITAÇÃO</div>
+
+    <!-- Story text -->
+    <div id="story-text"></div>
+
+    <!-- Controls hint -->
+    <div id="controls-hint">W A S D — MOVER · MOUSE — OLHAR · M — MEDITAR</div>
+  </div>
+
+  <!-- Noise overlay canvas -->
+  <canvas id="noise-overlay"></canvas>
+
+  <!-- Click to lock pointer -->
+  <div id="click-to-lock" class="visible">
+    <span>CLIQUE PARA OLHAR AO REDOR</span>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
