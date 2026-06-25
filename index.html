@@ -2,7 +2,9 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>ECHOES OF TOMORROW</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap');
@@ -11,6 +13,9 @@
       margin: 0;
       padding: 0;
       box-sizing: border-box;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
     }
 
     body {
@@ -18,12 +23,17 @@
       background: #1a1a2e;
       font-family: 'Cormorant Garamond', serif;
       cursor: default;
+      touch-action: none; /* Prevent browser gestures */
+      position: fixed;
+      width: 100%;
+      height: 100%;
     }
 
     #game-canvas {
       display: block;
       width: 100vw;
       height: 100vh;
+      touch-action: none;
     }
 
     /* Overlay UI */
@@ -241,6 +251,7 @@
       line-height: 1.8;
       opacity: 0;
       transition: opacity 2s ease;
+      white-space: nowrap;
     }
 
     #controls-hint.visible {
@@ -260,13 +271,16 @@
       opacity: 0;
       transition: opacity 0.3s ease;
       text-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+      text-align: center;
+      width: 80%;
+      max-width: 400px;
     }
 
     #book-label.visible {
       opacity: 1;
     }
 
-    /* Meditation mode */
+    /* Meditation badge */
     #meditation-badge {
       position: absolute;
       top: 30px;
@@ -295,6 +309,7 @@
       color: rgba(232, 213, 183, 0.7);
       text-align: center;
       max-width: 500px;
+      width: 85%;
       line-height: 1.8;
       opacity: 0;
       transition: opacity 3s ease;
@@ -345,7 +360,7 @@
       color: rgba(232, 213, 183, 0.4);
     }
 
-    /* Lock screen overlay */
+    /* Lock screen overlay (desktop only) */
     #click-to-lock {
       position: fixed;
       top: 0;
@@ -379,6 +394,237 @@
     @keyframes breathe {
       0%, 100% { opacity: 0.5; }
       50% { opacity: 1; }
+    }
+
+    /* ===== MOBILE CONTROLS ===== */
+
+    /* Virtual Joystick */
+    #joystick-area {
+      position: fixed;
+      pointer-events: none;
+      z-index: 25;
+      display: none;
+      transform: translate(-50%, -50%);
+    }
+
+    #joystick-area.active {
+      display: block;
+    }
+
+    #joystick-base {
+      width: 110px;
+      height: 110px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(232, 213, 183, 0.08) 0%, rgba(232, 213, 183, 0.03) 100%);
+      border: 1px solid rgba(232, 213, 183, 0.15);
+      position: relative;
+      backdrop-filter: blur(2px);
+    }
+
+    #joystick-thumb {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(232, 213, 183, 0.4) 0%, rgba(232, 213, 183, 0.15) 100%);
+      border: 1px solid rgba(232, 213, 183, 0.25);
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      transition: none; /* Follows touch instantly */
+    }
+
+    /* Mobile meditation button */
+    #btn-meditate {
+      position: fixed;
+      bottom: 30px;
+      right: 20px;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: rgba(232, 213, 183, 0.08);
+      border: 1px solid rgba(232, 213, 183, 0.2);
+      color: rgba(232, 213, 183, 0.6);
+      font-size: 1.3rem;
+      pointer-events: all;
+      cursor: pointer;
+      z-index: 30;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(2px);
+      transition: all 0.3s ease;
+      touch-action: manipulation;
+    }
+
+    #btn-meditate.visible {
+      display: flex;
+    }
+
+    #btn-meditate:active {
+      background: rgba(232, 213, 183, 0.2);
+      transform: scale(0.9);
+    }
+
+    /* Mobile touch hint (initial tutorial overlay) */
+    #mobile-hint {
+      position: fixed;
+      bottom: 120px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(232, 213, 183, 0.2);
+      font-size: 0.75rem;
+      letter-spacing: 0.15rem;
+      text-align: center;
+      line-height: 1.6;
+      pointer-events: none;
+      z-index: 30;
+      opacity: 0;
+      transition: opacity 2s ease;
+      white-space: nowrap;
+    }
+
+    #mobile-hint.visible {
+      opacity: 1;
+    }
+
+    /* ===== RESPONSIVE ===== */
+
+    /* Small phones */
+    @media (max-width: 480px) {
+      #title-screen h1 {
+        font-size: 2.5rem;
+        letter-spacing: 0.8rem;
+      }
+
+      #title-screen h1:nth-child(2) {
+        font-size: 1.5rem !important;
+        letter-spacing: 1rem !important;
+      }
+
+      #title-screen .subtitle {
+        font-size: 0.8rem;
+        letter-spacing: 0.3rem;
+        margin-bottom: 1.5rem;
+      }
+
+      #title-screen .tagline {
+        font-size: 0.75rem;
+        width: 85%;
+        line-height: 1.6;
+      }
+
+      .btn-start {
+        padding: 12px 32px;
+        font-size: 1rem;
+        letter-spacing: 0.3rem;
+      }
+
+      #click-to-lock span {
+        font-size: 1rem;
+        letter-spacing: 0.3rem;
+      }
+
+      #story-text {
+        font-size: 0.9rem;
+        width: 90%;
+      }
+
+      #echo-bar-bg {
+        width: 160px;
+      }
+
+      #book-label {
+        font-size: 0.8rem;
+        bottom: 120px;
+      }
+
+      #controls-hint {
+        font-size: 0.6rem;
+        white-space: normal;
+        max-width: 90%;
+        line-height: 1.4;
+      }
+
+      #joystick-base {
+        width: 90px;
+        height: 90px;
+      }
+
+      #joystick-thumb {
+        width: 34px;
+        height: 34px;
+      }
+
+      #btn-meditate {
+        width: 44px;
+        height: 44px;
+        font-size: 1.1rem;
+        bottom: 20px;
+        right: 15px;
+      }
+    }
+
+    /* Tablets */
+    @media (min-width: 481px) and (max-width: 1024px) {
+      #title-screen h1 {
+        font-size: 3.5rem;
+      }
+
+      #title-screen h1:nth-child(2) {
+        font-size: 2rem !important;
+      }
+
+      #joystick-base {
+        width: 120px;
+        height: 120px;
+      }
+
+      #joystick-thumb {
+        width: 46px;
+        height: 46px;
+      }
+    }
+
+    /* Landscape phones */
+    @media (max-height: 500px) {
+      #title-screen h1 {
+        font-size: 2rem;
+        letter-spacing: 0.6rem;
+        margin-bottom: 0.2rem;
+      }
+
+      #title-screen h1:nth-child(2) {
+        font-size: 1.2rem !important;
+        margin-top: -0.5rem !important;
+      }
+
+      #title-screen .subtitle {
+        font-size: 0.7rem;
+        margin-bottom: 1rem;
+      }
+
+      #title-screen .tagline {
+        font-size: 0.65rem;
+        margin-bottom: 1rem;
+      }
+
+      .btn-start {
+        padding: 10px 24px;
+        font-size: 0.9rem;
+      }
+
+      #echo-indicator {
+        bottom: 60px;
+      }
+
+      #echo-bar-bg {
+        width: 120px;
+      }
+
+      #book-label {
+        bottom: 100px;
+      }
     }
   </style>
 </head>
@@ -432,10 +678,20 @@
     <div id="controls-hint">W A S D — MOVER · MOUSE — OLHAR · M — MEDITAR</div>
   </div>
 
+  <!-- Virtual Joystick (mobile) -->
+  <div id="joystick-area">
+    <div id="joystick-base">
+      <div id="joystick-thumb"></div>
+    </div>
+  </div>
+
+  <!-- Mobile meditation button -->
+  <button id="btn-meditate" aria-label="Alternar Meditação">🧘</button>
+
   <!-- Noise overlay canvas -->
   <canvas id="noise-overlay"></canvas>
 
-  <!-- Click to lock pointer -->
+  <!-- Click to lock pointer (desktop) -->
   <div id="click-to-lock" class="visible">
     <span>CLIQUE PARA OLHAR AO REDOR</span>
   </div>

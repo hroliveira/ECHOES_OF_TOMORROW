@@ -4,6 +4,7 @@ import { Player } from './player.js';
 import { Environment } from './environment.js';
 import { AudioManager } from './audio.js';
 import { EffectsManager } from './effects.js';
+import { TouchControls } from './touch-controls.js';
 
 // --- DOM References ---
 const loadingEl = document.getElementById('loading');
@@ -18,6 +19,10 @@ const bookLabel = document.getElementById('book-label');
 const meditationBadge = document.getElementById('meditation-badge');
 const storyText = document.getElementById('story-text');
 const canvas = document.getElementById('game-canvas');
+const btnMeditate = document.getElementById('btn-meditate');
+
+// --- Device detection ---
+const isMobile = TouchControls.isMobile();
 
 // --- Game State ---
 const STATE = {
@@ -37,6 +42,32 @@ const effects = new EffectsManager(sceneManager.scene, sceneManager.camera);
 
 // Pass colliders to player
 player.colliders = environment.getColliders();
+
+// --- Touch Controls (mobile) ---
+let touchControls = null;
+if (isMobile) {
+  touchControls = new TouchControls(player, canvas);
+  // On mobile, the player always has control (no pointer lock needed)
+  player.isLocked = true;
+
+  // Set tap callback for book interaction
+  touchControls.setTapCallback(() => {
+    if (currentBook && gameState === STATE.PLAYING) {
+      interactWithBook(currentBook);
+    }
+  });
+
+  // Hide click-to-lock overlay on mobile
+  if (clickToLock) clickToLock.style.display = 'none';
+
+  // Show mobile meditation button
+  if (btnMeditate) btnMeditate.classList.add('visible');
+
+  // Update controls hint for mobile
+  if (controlsHint) {
+    controlsHint.textContent = 'JOYSTICK — MOVER · ARRASTAR — OLHAR · Toque — INTERAGIR';
+  }
+}
 
 // --- Game Loop ---
 let lastTime = performance.now();
@@ -60,6 +91,11 @@ function gameLoop(time) {
 
   if (gameState === STATE.PLAYING || gameState === STATE.MEDITATING) {
     const elapsed = (time - gameStartTime) / 1000;
+
+    // Update touch controls (mobile)
+    if (touchControls) {
+      touchControls.update();
+    }
 
     // Update player
     player.update(delta);
@@ -99,7 +135,7 @@ function gameLoop(time) {
 
     // Echo alignment bar
     if (echoIndicator) {
-      echoIndicator.classList.toggle('visible', player.isLocked && echoAlignment > 0.1);
+      echoIndicator.classList.toggle('visible', (player.isLocked || isMobile) && echoAlignment > 0.1);
     }
     if (echoBarFill) {
       echoBarFill.style.width = `${echoAlignment * 100}%`;
@@ -109,9 +145,6 @@ function gameLoop(time) {
     checkBookInteraction(time);
 
     // Story messages
-    // Quando a primeira mensagem foi mostrada via setTimeout (~3s), storyIndex vira 1
-    // O loop espera elapsed > 10 e depois 15s entre cada mensagem.
-    // Usamos 'lastStoryTime' em segundos (elapsed) para comparar corretamente.
     if (elapsed > 10 && elapsed - lastStoryTime > 15) {
       if (storyIndex < STORY_MESSAGES.length) {
         showStoryMessage(STORY_MESSAGES[storyIndex]);
@@ -126,7 +159,7 @@ function gameLoop(time) {
       meditationBadge.classList.add('visible');
 
       // Slow rotation of camera for meditation
-      if (player.isLocked) {
+      if (player.isLocked || isMobile) {
         const medRot = Math.sin(time * 0.0001) * 0.5;
         // Gentle breathing effect
       }
@@ -155,7 +188,8 @@ const raycaster = new THREE.Raycaster();
 let currentBook = null;
 
 function checkBookInteraction(time) {
-  if (!player.isLocked) return;
+  const canInteract = player.isLocked || isMobile;
+  if (!canInteract) return;
 
   raycaster.setFromCamera({ x: 0, y: 0 }, sceneManager.camera);
 
@@ -170,7 +204,7 @@ function checkBookInteraction(time) {
 
     if (bookData && !bookData.interacted) {
       currentBook = bookData;
-      bookLabel.textContent = `📖 ${bookData.category} — Clique para ouvir`;
+      bookLabel.textContent = `📖 ${getCategoryName(bookData.category)} — Toque para ouvir`;
       bookLabel.classList.add('visible');
 
       // Highlight book
@@ -185,25 +219,43 @@ function checkBookInteraction(time) {
   }
 }
 
-// Listen for click to interact with books
+function getCategoryName(category) {
+  const names = {
+    physics: 'Física',
+    poetry: 'Poesia',
+    history: 'História',
+    fiction: 'Ficção',
+    philosophy: 'Filosofia',
+    fantasy: 'Fantasia',
+    science: 'Ciência',
+    art: 'Arte'
+  };
+  return names[category] || category;
+}
+
+// Desktop click to interact with books
 document.addEventListener('click', () => {
-  if (currentBook && player.isLocked) {
-    const category = currentBook.category;
-    // Play the sound for this book category
-    audio.playBookSound(category);
-    currentBook.interacted = true;
-    currentBook.mesh.material.emissiveIntensity = 0.3;
-
-    // Reset after a cooldown
-    setTimeout(() => {
-      if (currentBook) {
-        currentBook.interacted = false;
-      }
-    }, 3000);
-
-    bookLabel.textContent = `🎵 ${category} — ${getFrequencyNote(category)}`;
+  if (currentBook && player.isLocked && !isMobile) {
+    interactWithBook(currentBook);
   }
 });
+
+function interactWithBook(book) {
+  const category = book.category;
+  // Play the sound for this book category
+  audio.playBookSound(category);
+  book.interacted = true;
+  book.mesh.material.emissiveIntensity = 0.3;
+
+  // Reset after a cooldown
+  setTimeout(() => {
+    if (book) {
+      book.interacted = false;
+    }
+  }, 3000);
+
+  bookLabel.textContent = `🎵 ${getCategoryName(category)} — ${getFrequencyNote(category)}`;
+}
 
 function getFrequencyNote(category) {
   const notes = {
@@ -235,12 +287,20 @@ function showStoryMessage(text) {
 
 // --- Meditation Mode ---
 document.addEventListener('keydown', (event) => {
-  if (event.code === 'KeyM' && gameState === STATE.PLAYING) {
-    toggleMeditation();
-  } else if (event.code === 'KeyM' && gameState === STATE.MEDITATING) {
+  if (event.code === 'KeyM' && (gameState === STATE.PLAYING || gameState === STATE.MEDITATING)) {
     toggleMeditation();
   }
 });
+
+// Mobile meditation button
+if (btnMeditate) {
+  btnMeditate.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (gameState === STATE.PLAYING || gameState === STATE.MEDITATING) {
+      toggleMeditation();
+    }
+  });
+}
 
 function toggleMeditation() {
   if (gameState === STATE.PLAYING) {
@@ -249,10 +309,12 @@ function toggleMeditation() {
     showStoryMessage('"Sente-se. Ouça os ecos do tempo."');
     document.body.style.transition = 'filter 3s ease';
     document.body.style.filter = 'brightness(0.6) saturate(0.5)';
+    if (btnMeditate) btnMeditate.textContent = '⏳';
   } else if (gameState === STATE.MEDITATING) {
     gameState = STATE.PLAYING;
     audio.exitMeditation();
     document.body.style.filter = 'none';
+    if (btnMeditate) btnMeditate.textContent = '🧘';
   }
 }
 
@@ -262,13 +324,17 @@ btnStart.addEventListener('click', () => {
   titleScreen.classList.add('hidden');
 
   // Show HUD
-  hud.classList.add('visible');    // Start game
+  hud.classList.add('visible');
+
+  // Start game
   gameState = STATE.PLAYING;
   gameStartTime = performance.now();
 
-  // Force pointer lock
-  canvas.focus();
-  canvas.requestPointerLock();
+  // On desktop, request pointer lock
+  if (!isMobile) {
+    canvas.focus();
+    canvas.requestPointerLock();
+  }
 
   // Initialize audio on user gesture
   audio.resume();
@@ -298,8 +364,19 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+// Handle window resize for mobile orientation changes
+window.addEventListener('resize', () => {
+  // The scene manager already handles camera/resize
+  // Additional mobile-specific handling if needed
+});
+
+// Prevent context menu on long-press (mobile)
+document.addEventListener('contextmenu', (e) => {
+  if (isMobile) e.preventDefault();
+});
+
 // --- Start Loop ---
 requestAnimationFrame(gameLoop);
 
 // --- Expose for debugging ---
-window.__game = { sceneManager, player, environment, audio, effects };
+window.__game = { sceneManager, player, environment, audio, effects, touchControls };

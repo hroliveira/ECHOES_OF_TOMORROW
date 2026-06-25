@@ -8,12 +8,17 @@ export class Player {
     this.camera = camera;
     this.domElement = domElement;
 
-    // Movement state
+    // Movement state (keyboard)
     this.moveForward = false;
     this.moveBackward = false;
     this.moveLeft = false;
     this.moveRight = false;
     this.isLocked = false;
+
+    // Touch input state
+    this.touchMoveX = 0;
+    this.touchMoveY = 0;
+    this.isTouchActive = false;
 
     // Position & rotation
     this.position = camera.position;
@@ -41,7 +46,7 @@ export class Player {
     // Grounded check
     this.isOnGround = true;
 
-    // Pointer lock
+    // Pointer lock (desktop only)
     this.setupPointerLock();
     this.setupKeyboard();
 
@@ -109,6 +114,29 @@ export class Player {
     });
   }
 
+  /**
+   * Called by TouchControls each frame with joystick input.
+   * @param {number} x - Horizontal joystick position (-1 to 1)
+   * @param {number} y - Vertical joystick position (-1 to 1, positive = backward)
+   */
+  setTouchMove(x, y) {
+    this.touchMoveX = x;
+    this.touchMoveY = y;
+    this.isTouchActive = Math.abs(x) > 0.01 || Math.abs(y) > 0.01;
+  }
+
+  /**
+   * Called by TouchControls to rotate the camera (like mouse look).
+   * No pointer lock needed — works directly on camera quaternion.
+   */
+  applyTouchLook(dx, dy) {
+    this.euler.setFromQuaternion(this.camera.quaternion);
+    this.euler.y -= dx;
+    this.euler.x -= dy;
+    this.euler.x = Math.max(-_PI_2, Math.min(_PI_2, this.euler.x));
+    this.camera.quaternion.setFromEuler(this.euler);
+  }
+
   getForward() {
     const forward = new THREE.Vector3(0, 0, -1);
     forward.applyQuaternion(this.camera.quaternion);
@@ -126,19 +154,39 @@ export class Player {
   }
 
   update(delta) {
-    if (!this.isLocked) return;
+    // On desktop, require pointer lock for movement
+    // On mobile, check if touch is active
+    const hasControl = this.isLocked || this.isTouchActive;
+
+    if (!hasControl) {
+      // Still record position even without movement (for the ghost)
+      this.recordPosition();
+      return;
+    }
 
     // Calculate movement direction
     const forward = this.getForward();
     const right = this.getRight();
 
     this.direction.set(0, 0, 0);
-    if (this.moveForward) this.direction.add(forward);
-    if (this.moveBackward) this.direction.sub(forward);
-    if (this.moveLeft) this.direction.sub(right);
-    if (this.moveRight) this.direction.add(right);
 
-    this.direction.normalize();
+    if (this.isTouchActive) {
+      // Touch input: use joystick values
+      // Y: negative = forward, positive = backward
+      // X: negative = left, positive = right
+      this.direction.add(forward.clone().multiplyScalar(-this.touchMoveY));
+      this.direction.add(right.clone().multiplyScalar(this.touchMoveX));
+    } else {
+      // Keyboard input
+      if (this.moveForward) this.direction.add(forward);
+      if (this.moveBackward) this.direction.sub(forward);
+      if (this.moveLeft) this.direction.sub(right);
+      if (this.moveRight) this.direction.add(right);
+    }
+
+    if (this.direction.length() > 0) {
+      this.direction.normalize();
+    }
 
     // Apply velocity
     const speed = this.speed * delta;
@@ -179,6 +227,10 @@ export class Player {
     }
 
     // Record position for echo ghost
+    this.recordPosition();
+  }
+
+  recordPosition() {
     const now = performance.now();
     if (now - this.lastRecordTime >= this.recordInterval) {
       this.recordingBuffer.push({
@@ -235,6 +287,10 @@ export class Player {
 
   // Get current movement speed for audio
   getSpeed() {
+    if (this.isTouchActive) {
+      const touchMag = Math.sqrt(this.touchMoveX * this.touchMoveX + this.touchMoveY * this.touchMoveY);
+      return touchMag * this.speed;
+    }
     return this.direction.length() * (this.moveForward || this.moveBackward || this.moveLeft || this.moveRight ? this.speed : 0);
   }
 
